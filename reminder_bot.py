@@ -4,6 +4,11 @@ from telegram.ext import Application, CommandHandler, CallbackQueryHandler, Cont
 import asyncio
 from datetime import datetime, timedelta
 import random
+import os
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
 
 # Enable logging
 logging.basicConfig(
@@ -11,8 +16,11 @@ logging.basicConfig(
     level=logging.INFO
 )
 
-# Bot Token from BotFather
-BOT_TOKEN = "YOUR_BOT_TOKEN_HERE"
+# Bot Token from environment variable
+BOT_TOKEN = os.getenv('BOT_TOKEN')
+
+if not BOT_TOKEN:
+    raise ValueError("Please set BOT_TOKEN environment variable")
 
 # Reminder messages (5 different messages)
 REMINDER_MESSAGES = [
