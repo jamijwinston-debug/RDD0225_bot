@@ -2,7 +2,6 @@ import logging
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
 import asyncio
-from datetime import datetime, timedelta
 import random
 import os
 from dotenv import load_dotenv
@@ -15,6 +14,7 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     level=logging.INFO
 )
+logger = logging.getLogger(__name__)
 
 # Bot Token from environment variable
 BOT_TOKEN = os.getenv('BOT_TOKEN')
@@ -95,7 +95,7 @@ async def handle_reminder_selection(update: Update, context: ContextTypes.DEFAUL
     if query.data == "cancel_reminder":
         # Cancel existing reminder
         if user_id in active_reminders:
-            active_reminders[user_id].cancel()
+            active_reminders[user_id].schedule_removal()
             del active_reminders[user_id]
             await query.edit_message_text("✅ Reminder cancelled!")
         else:
@@ -108,7 +108,7 @@ async def handle_reminder_selection(update: Update, context: ContextTypes.DEFAUL
     if time_frame in TIME_FRAMES:
         # Cancel existing reminder if any
         if user_id in active_reminders:
-            active_reminders[user_id].cancel()
+            active_reminders[user_id].schedule_removal()
         
         # Create new reminder job
         minutes = TIME_FRAMES[time_frame]
@@ -157,10 +157,10 @@ async def send_reminder(context: ContextTypes.DEFAULT_TYPE):
             parse_mode='Markdown'
         )
     except Exception as e:
-        print(f"Failed to send reminder: {e}")
+        logger.error(f"Failed to send reminder: {e}")
         # Cancel job if bot is no longer in chat
         if user_id in active_reminders:
-            active_reminders[user_id].cancel()
+            active_reminders[user_id].schedule_removal()
             del active_reminders[user_id]
 
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -168,7 +168,7 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     
     if user_id in active_reminders:
-        active_reminders[user_id].cancel()
+        active_reminders[user_id].schedule_removal()
         del active_reminders[user_id]
         await update.message.reply_text("✅ Reminder cancelled!")
     else:
@@ -207,6 +207,10 @@ Add me to your groups to keep everyone motivated! 🚀
     
     await update.message.reply_text(help_text, parse_mode='Markdown')
 
+async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Log errors"""
+    logger.error(f"Exception while handling an update: {context.error}")
+
 def main():
     """Start the bot"""
     # Create Application
@@ -218,10 +222,18 @@ def main():
     application.add_handler(CommandHandler("status", status))
     application.add_handler(CommandHandler("help", help_command))
     application.add_handler(CallbackQueryHandler(handle_reminder_selection, pattern="^reminder_|^cancel_reminder"))
+    
+    # Add error handler
+    application.add_error_handler(error_handler)
 
     # Start the Bot
-    print("🤖 Reminder Bot is running...")
-    application.run_polling()
+    logger.info("🤖 Reminder Bot is running...")
+    
+    # For Render.com, use polling with proper error handling
+    application.run_polling(
+        allowed_updates=Update.ALL_TYPES,
+        drop_pending_updates=True
+    )
 
 if __name__ == '__main__':
     main()
